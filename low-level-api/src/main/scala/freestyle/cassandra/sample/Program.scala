@@ -20,11 +20,6 @@ import java.util.UUID
 
 import cats.instances.future._
 import freestyle._
-import freestyle.async._
-import freestyle.async.implicits._
-import freestyle.asyncMonix.implicits._
-import freestyle.implicits._
-import freestyle.cassandra.codecs._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.cassandra.api.LowLevelAPI
