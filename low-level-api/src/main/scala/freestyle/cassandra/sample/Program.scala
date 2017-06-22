@@ -19,7 +19,9 @@ package freestyle.cassandra.sample
 import java.util.UUID
 
 import cats.instances.future._
+import com.datastax.driver.core.BoundStatement
 import freestyle._
+import freestyle.cassandra.codecs._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.cassandra.api.LowLevelAPI
@@ -39,8 +41,17 @@ object Program extends App {
 
     val newUser = User(UUID.randomUUID(), "Username")
 
+    def prepareStatement(implicit c1: ByteBufferCodec[UUID], c2: ByteBufferCodec[String]): FreeS[F, BoundStatement] =
+      lowLevelAPI.prepare("INSERT INTO User (id, name) VALUES (?, ?)") map { st =>
+        val boundStatement = st.bind()
+        boundStatement.setBytesUnsafe("id", c1.serialize(newUser.id))
+        boundStatement.setBytesUnsafe("name", c2.serialize(newUser.name))
+        boundStatement
+      }
+
     for {
-      _ <- lowLevelAPI.executeStatement(newUser.boundedInsert)
+      statement <- prepareStatement
+      _ <- lowLevelAPI.executeStatement(statement)
       user <- lowLevelAPI.executeWithMap(
         s"SELECT id, name FROM User WHERE id = ?",
         Map("id" -> newUser.id)) map { rs =>

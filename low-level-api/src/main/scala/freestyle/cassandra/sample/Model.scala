@@ -16,11 +16,8 @@
 
 package freestyle.cassandra.sample
 
-import freestyle.cassandra.macros.table
-
 object Model {
 
-  @table
   case class User(id: java.util.UUID, name: String)
 
 }
