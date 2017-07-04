@@ -18,21 +18,17 @@ package freestyle.cassandra.sample
 
 import java.util.UUID
 
-import cats.~>
+import cats.{MonadError, ~>}
 import com.datastax.driver.core.{Cluster, ProtocolVersion, Session, TypeCodec}
 import freestyle.asyncMonix.implicits._
-import freestyle.cassandra.api.LowLevelAPI
 import monix.eval.{Task => MonixTask}
-
 
 object Implicits {
 
-  val cluster: Cluster = Cluster
+  implicit val cluster: Cluster = Cluster
     .builder()
     .addContactPoint("127.0.0.1")
     .build()
-
-  lazy implicit val session: Session = cluster.connect("demodb")
 
   implicit val stringTypeCodec: TypeCodec[String] = TypeCodec.varchar()
 
@@ -40,8 +36,14 @@ object Implicits {
 
   implicit val protocolVersion: ProtocolVersion = ProtocolVersion.V4
 
+  import freestyle.cassandra.api._
   import freestyle.cassandra.implicits._
+  import freestyle.cassandra.handlers.implicits._
 
-  implicit val lowLevelAPIHandler: LowLevelAPI.Op ~> MonixTask = listenableFutureHandler andThen listenableFuture2Async[MonixTask]
+  implicit def clusterAPIInterpreter(implicit cluster: Cluster, E: MonadError[MonixTask, Throwable]): ClusterAPI.Op ~> MonixTask =
+    clusterAPIHandler[MonixTask] andThen apiInterpreter[MonixTask, Cluster](cluster)
+
+  implicit def lowLevelAPIInterpreter(implicit session: Session): LowLevelAPI.Op ~> MonixTask =
+    lowLevelAPIHandler andThen apiInterpreter[MonixTask, Session](session)
 
 }
