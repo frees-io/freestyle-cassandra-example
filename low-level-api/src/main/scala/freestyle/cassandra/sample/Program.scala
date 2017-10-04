@@ -19,12 +19,14 @@ package freestyle.cassandra.sample
 import java.util.UUID
 
 import cats.instances.future._
-import com.datastax.driver.core.{BoundStatement, Session}
+import com.datastax.driver.core.{BoundStatement, PreparedStatement, Session}
 import freestyle._
+import freestyle.implicits._
+import freestyle.cassandra.api.ClusterAPI
 import freestyle.cassandra.codecs._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
-import freestyle.cassandra.api.{ClusterAPI, LowLevelAPI}
+import freestyle.loggingJVM.implicits._
 import monix.eval.{Task => MonixTask}
 import monix.cats._
 import monix.execution.Scheduler
@@ -34,48 +36,57 @@ import scala.concurrent.duration.Duration
 
 object Program extends App {
 
+  import Modules.CassandraApp
+
   def connect[F[_]](implicit clusterAPI: ClusterAPI[F]): FreeS[F, Session] =
     clusterAPI.connectKeyspace("demodb")
 
-  def program[F[_]](implicit lowLevelAPI: LowLevelAPI[F]): FreeS[F, User] = {
+  def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
+
+    import app._
 
     val newUser = User(UUID.randomUUID(), "Username")
 
-    def prepareStatement(
+    def bindValues(st: PreparedStatement)(
         implicit c1: ByteBufferCodec[UUID],
         c2: ByteBufferCodec[String]): FreeS[F, BoundStatement] =
-      lowLevelAPI.prepare("INSERT INTO User (id, name) VALUES (?, ?)") map { st =>
-        val boundStatement = st.bind()
-        boundStatement.setBytesUnsafe("id", c1.serialize(newUser.id))
-        boundStatement.setBytesUnsafe("name", c2.serialize(newUser.name))
-        boundStatement
-      }
+      List(
+        statementAPI.setValueByName(_: BoundStatement, "id", newUser.id, c1),
+        statementAPI.setValueByName(_: BoundStatement, "name", newUser.name, c2))
+        .foldLeft[FreeS[F, BoundStatement]](statementAPI.bind(st)) { (freeS, func) =>
+          freeS.flatMap(boundSt => func(boundSt))
+        }
 
     for {
-      statement <- prepareStatement
-      _         <- lowLevelAPI.executeStatement(statement)
-      user <- lowLevelAPI.executeWithMap(
+      _ <- log.debug("==========> Preparing insert query <==========")
+      preparedStatement <- sessionAPI.prepare("INSERT INTO User (id, name) VALUES (?, ?)")
+      _ <- log.debug("==========> Binding values <==========")
+      boundStatement    <- bindValues(preparedStatement)
+      _ <- log.debug(s"==========> Executing insert query with id ${newUser.id} <==========")
+      _                 <- sessionAPI.executeStatement(boundStatement)
+      _ <- log.debug("==========> Selecting previous inserted item <==========")
+      user <- sessionAPI.executeWithMap(
         s"SELECT id, name FROM User WHERE id = ?",
         Map("id" -> newUser.id)) map { rs =>
         val row = rs.one()
         User(row.getUUID(0), row.getString(1))
       }
-      _ <- lowLevelAPI.close
+      _ <- log.debug(s"==========> Fetched item $user <==========")
+      _ <- log.debug(s"==========> Closing connection <==========")
+      _ <- sessionAPI.close
     } yield user
+
   }
 
   def close[F[_]](implicit clusterAPI: ClusterAPI[F]): FreeS[F, Unit] = clusterAPI.close
-  
+
   implicit val executionContext: Scheduler = Scheduler.Implicits.global
 
   val beforeTask: MonixTask[Session] = connect[ClusterAPI.Op].interpret[MonixTask]
-
   implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
 
-  val task: MonixTask[User] = program[LowLevelAPI.Op].interpret[MonixTask]
-
-  val result: User = Await.result(task.runAsync, Duration.Inf)
-  println(result)
+  val task: MonixTask[User] = program[CassandraApp.Op].interpret[MonixTask]
+  Await.result(task.runAsync, Duration.Inf)
 
   val afterTask: MonixTask[Unit] = close[ClusterAPI.Op].interpret[MonixTask]
   Await.result(afterTask.runAsync, Duration.Inf)
