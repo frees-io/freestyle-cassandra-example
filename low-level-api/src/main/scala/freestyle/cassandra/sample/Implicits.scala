@@ -42,8 +42,8 @@ object Implicits {
   implicit def clusterAPIInterpreter(implicit cluster: Cluster, E: MonadError[MonixTask, Throwable]): ClusterAPI.Op ~> MonixTask =
     clusterAPIHandler[MonixTask] andThen apiInterpreter[MonixTask, Cluster](cluster)
 
-  implicit def sessionAPIInterpreter(implicit session: Session): SessionAPI.Op ~> MonixTask =
-    sessionAPIHandler andThen apiInterpreter[MonixTask, Session](session)
+  implicit def sessionAPIInterpreter(implicit session: Session, E: MonadError[MonixTask, Throwable]): SessionAPI.Op ~> MonixTask =
+    sessionAPIHandler[MonixTask] andThen apiInterpreter[MonixTask, Session](session)
 
   implicit def statementAPIInterpreter(implicit E: MonadError[MonixTask, Throwable]): StatementAPI.Handler[MonixTask] =
     statementAPIHandler[MonixTask]
