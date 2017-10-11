@@ -34,7 +34,7 @@ import monix.execution.Scheduler
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-object Program extends App {
+object LowLevelApi extends App {
 
   import Modules.CassandraApp
 
@@ -59,14 +59,14 @@ object Program extends App {
 
     for {
       _ <- log.debug("==========> Preparing insert query <==========")
-      preparedStatement <- sessionAPI.prepare("INSERT INTO User (id, name) VALUES (?, ?)")
+      preparedStatement <- sessionAPI.prepare("INSERT INTO users (id, name) VALUES (?, ?)")
       _ <- log.debug("==========> Binding values <==========")
       boundStatement    <- bindValues(preparedStatement)
       _ <- log.debug(s"==========> Executing insert query with id ${newUser.id} <==========")
       _                 <- sessionAPI.executeStatement(boundStatement)
       _ <- log.debug("==========> Selecting previous inserted item <==========")
       user <- sessionAPI.executeWithMap(
-        s"SELECT id, name FROM User WHERE id = ?",
+        s"SELECT id, name FROM users WHERE id = ?",
         Map("id" -> newUser.id)) map { rs =>
         val row = rs.one()
         User(row.getUUID(0), row.getString(1))
