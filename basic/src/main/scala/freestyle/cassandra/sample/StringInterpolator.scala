@@ -19,27 +19,27 @@ package freestyle.cassandra.sample
 import java.util.UUID
 
 import cats.instances.future._
-import com.datastax.driver.core.{ProtocolVersion, ResultSet, Session, TypeCodec}
+import com.datastax.driver.core._
 import freestyle._
-import freestyle.FreeS
-import freestyle.async.implicits._
-import freestyle.asyncMonix.implicits._
+import freestyle.implicits._
 import freestyle.cassandra.api.{ClusterAPI, SessionAPI}
 import freestyle.cassandra.codecs._
-import freestyle.cassandra.query.interpolator._
 import freestyle.cassandra.query.interpolator.RuntimeCQLInterpolator._
+import freestyle.cassandra.query.interpolator._
 import freestyle.cassandra.sample.Implicits._
-import freestyle.implicits._
+import freestyle.cassandra.sample.Model._
+import freestyle.loggingJVM.implicits._
 import monix.cats._
 import monix.eval.{Task => MonixTask}
 import monix.execution.Scheduler
 
-import scala.collection.JavaConverters._
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-import scala.util.control.NonFatal
+
 
 object StringInterpolator extends App {
+
+  import Modules.CassandraApp
 
   implicit val executionContext: Scheduler = Scheduler.Implicits.global
 
@@ -50,27 +50,44 @@ object StringInterpolator extends App {
 
   def close[F[_]](implicit clusterAPI: ClusterAPI[F]): FreeS[F, Unit] = clusterAPI.close
 
-  implicit val session: Session =
-    Await.result(connect[ClusterAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
+  val uuid = UUID.randomUUID()
 
-  val uuid = java.util.UUID.fromString("f61e816f-f59e-4c0d-b610-a59418eedaa0")
-
-  implicit val uuidCodec: ByteBufferCodec[UUID] =
-    freestyle.cassandra.codecs.byteBufferCodec(TypeCodec.uuid(), ProtocolVersion.V5)
-
-  val task: MonixTask[ResultSet] = cql"SELECT id, name FROM users WHERE id = $uuid".asResultSet[MonixTask]
-  val resultSet: ResultSet       = Await.result(task.runAsync, Duration.Inf)
-
-  try {
-    resultSet.iterator().asScala.foreach { row =>
-      println(s"########## User ${row.get[java.util.UUID](0, TypeCodec.uuid()).toString}")
-    }
-  } catch {
-    case NonFatal(t) => t.printStackTrace()
+  implicit def instance[F[_]]: FreeSLift[F, monix.eval.Task] = new FreeSLift[F, monix.eval.Task] {
+    def liftFSPar[A](ga: monix.eval.Task[A]): FreeS.Par[F, A] = ga.liftFSPar[F]
   }
 
-  Await.result(closeSession[SessionAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
+  def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
 
+    implicit val s = app.sessionAPI
+
+    val insertUserTask: FreeS[F, ResultSet] = cql"INSERT INTO users (id, name) VALUES ($uuid, 'Username');".asResultSet[F]
+    val getUserTask: FreeS[F, ResultSet]= cql"SELECT id, name FROM users WHERE id = $uuid".asResultSet[F]
+
+    for {
+      _ <- app.log.debug(s"# Executing insert query with id $uuid")
+      newUser <- insertUserTask
+      _ <- app.log.debug("# Selecting previous inserted item")
+      userResultSet <- getUserTask
+      user = {
+        val userRow = userResultSet.one()
+        User(userRow.getUUID(0), userRow.getString(1))
+      }
+      _ <- app.log.debug(s"# Fetched item: $user")
+      _ <- app.log.debug(s"# Closing connection")
+      _ <- app.sessionAPI.close
+    } yield user
+  }
+
+  val beforeTask: MonixTask[Session] = connect[ClusterAPI.Op].interpret[MonixTask]
+  implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
+
+  val task: MonixTask[User] = program[CassandraApp.Op].interpret[MonixTask]
+  Await.result(task.runAsync, Duration.Inf)
+
+  val afterTask: MonixTask[Unit] = close[ClusterAPI.Op].interpret[MonixTask]
+  Await.result(afterTask.runAsync, Duration.Inf)
+
+  Await.result(closeSession[SessionAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
   Await.result(close[ClusterAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
 
 }
