@@ -58,21 +58,21 @@ object LowLevelApi extends App {
         }
 
     for {
-      _ <- log.debug("==========> Preparing insert query <==========")
+      _ <- log.debug("# Preparing insert query")
       preparedStatement <- sessionAPI.prepare("INSERT INTO users (id, name) VALUES (?, ?)")
-      _ <- log.debug("==========> Binding values <==========")
+      _ <- log.debug("# Binding values")
       boundStatement    <- bindValues(preparedStatement)
-      _ <- log.debug(s"==========> Executing insert query with id ${newUser.id} <==========")
+      _ <- log.debug(s"# Executing insert query with id ${newUser.id}")
       _                 <- sessionAPI.executeStatement(boundStatement)
-      _ <- log.debug("==========> Selecting previous inserted item <==========")
+      _ <- log.debug("# Selecting previous inserted item")
       user <- sessionAPI.executeWithMap(
         s"SELECT id, name FROM users WHERE id = ?",
         Map("id" -> newUser.id)) map { rs =>
         val row = rs.one()
         User(row.getUUID(0), row.getString(1))
       }
-      _ <- log.debug(s"==========> Fetched item $user <==========")
-      _ <- log.debug(s"==========> Closing connection <==========")
+      _ <- log.debug(s"# Fetched item $user")
+      _ <- log.debug(s"# Closing connection")
       _ <- sessionAPI.close
     } yield user
 
