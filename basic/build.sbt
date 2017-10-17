@@ -13,5 +13,5 @@ libraryDependencies ++= Seq(
   "io.frees" %% "freestyle-monix"       % "0.3.1",
   "io.frees" %% "freestyle-async-monix" % "0.3.1",
   "io.frees" %% "freestyle-logging"     % "0.3.1",
-  "io.frees" %% "frees-cassandra-core"  % "0.0.1-SNAPSHOT"
+  "io.frees" %% "frees-cassandra-core"  % "0.0.1"
 )
