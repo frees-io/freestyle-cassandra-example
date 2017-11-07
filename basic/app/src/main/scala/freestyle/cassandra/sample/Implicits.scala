@@ -20,8 +20,12 @@ import java.util.UUID
 
 import cats.{MonadError, ~>}
 import com.datastax.driver.core._
-import freestyle.asyncMonix.implicits._
-import monix.eval.{Task => MonixTask}
+import freestyle.async.implicits._
+import monix.eval.Task
+import freestyle.asyncCatsEffect.implicits._
+import monix.eval.instances.CatsAsyncInstances._
+import monix.execution.Scheduler.Implicits.global
+import cats.implicits._
 
 object Implicits {
 
@@ -39,13 +43,13 @@ object Implicits {
   import freestyle.cassandra.api._
   import freestyle.cassandra.handlers.implicits._
 
-  implicit def clusterAPIInterpreter(implicit cluster: Cluster, E: MonadError[MonixTask, Throwable]): ClusterAPI.Op ~> MonixTask =
-    clusterAPIHandler[MonixTask] andThen apiInterpreter[MonixTask, Cluster](cluster)
+  implicit def clusterAPIInterpreter(implicit cluster: Cluster, E: MonadError[Task, Throwable]): ClusterAPI.Op ~> Task =
+    clusterAPIHandler[Task] andThen apiInterpreter[Task, Cluster](cluster)
 
-  implicit def sessionAPIInterpreter(implicit session: Session, E: MonadError[MonixTask, Throwable]): SessionAPI.Op ~> MonixTask =
-    sessionAPIHandler[MonixTask] andThen apiInterpreter[MonixTask, Session](session)
+  implicit def sessionAPIInterpreter(implicit session: Session, E: MonadError[Task, Throwable]): SessionAPI.Op ~> Task =
+    sessionAPIHandler[Task] andThen apiInterpreter[Task, Session](session)
 
-  implicit def statementAPIInterpreter(implicit E: MonadError[MonixTask, Throwable]): StatementAPI.Handler[MonixTask] =
-    statementAPIHandler[MonixTask]
+  implicit def statementAPIInterpreter(implicit E: MonadError[Task, Throwable]): StatementAPI.Handler[Task] =
+    statementAPIHandler[Task]
 
 }
