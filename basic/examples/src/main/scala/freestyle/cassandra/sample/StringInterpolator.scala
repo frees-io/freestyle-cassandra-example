@@ -42,6 +42,7 @@ import scala.concurrent.duration.Duration
 object StringInterpolator extends App {
 
   import Modules.CassandraApp
+  import DummySchemaInterpolator._
 
   implicit val executionContext: Scheduler = Scheduler.Implicits.global
 
