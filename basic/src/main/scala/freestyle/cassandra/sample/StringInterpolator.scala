@@ -22,20 +22,22 @@ import cats.instances.future._
 import com.datastax.driver.core._
 import freestyle._
 import freestyle.implicits._
-import freestyle.cassandra.api.{ClusterAPI, SessionAPI}
+import freestyle.cassandra.api._
 import freestyle.cassandra.codecs._
+import freestyle.cassandra.implicits._
+import freestyle.async.implicits._
+import freestyle.asyncCatsEffect.implicits._
+import freestyle.asyncGuava.implicits._
 import freestyle.cassandra.query.interpolator.RuntimeCQLInterpolator._
 import freestyle.cassandra.query.interpolator._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.loggingJVM.implicits._
-import monix.cats._
-import monix.eval.{Task => MonixTask}
+import monix.eval.Task
 import monix.execution.Scheduler
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-
 
 object StringInterpolator extends App {
 
@@ -56,38 +58,40 @@ object StringInterpolator extends App {
     def liftFSPar[A](ga: monix.eval.Task[A]): FreeS.Par[F, A] = ga.liftFSPar[F]
   }
 
-  def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
+  def program(implicit queryModule: QueryModule[QueryModule.Op]): FreeS[QueryModule.Op, User] = {
 
-    implicit val s = app.sessionAPI
+    implicit val s = queryModule.sessionAPI
 
-    val insertUserTask: FreeS[F, ResultSet] = cql"INSERT INTO users (id, name) VALUES ($uuid, 'Username');".asResultSet[F]
-    val getUserTask: FreeS[F, ResultSet]= cql"SELECT id, name FROM users WHERE id = $uuid".asResultSet[F]
+    val insertUserTask: FreeS[QueryModule.Op, ResultSet] =
+      cql"INSERT INTO users (id, name) VALUES ($uuid, 'Username');".asResultSet()
+    val getUserTask: FreeS[QueryModule.Op, ResultSet] =
+      cql"SELECT id, name FROM users WHERE id = $uuid".asResultSet()
 
     for {
-      _ <- app.log.debug(s"# Executing insert query with id $uuid")
-      newUser <- insertUserTask
-      _ <- app.log.debug("# Selecting previous inserted item")
+      _             <- insertUserTask
       userResultSet <- getUserTask
       user = {
         val userRow = userResultSet.one()
         User(userRow.getUUID(0), userRow.getString(1))
       }
-      _ <- app.log.debug(s"# Fetched item: $user")
-      _ <- app.log.debug(s"# Closing connection")
-      _ <- app.sessionAPI.close
+      _ <- queryModule.sessionAPI.close
     } yield user
   }
 
-  val beforeTask: MonixTask[Session] = connect[ClusterAPI.Op].interpret[MonixTask]
+  val beforeTask: Task[Session] = connect[ClusterAPI.Op].interpret[Task]
   implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
 
-  val task: MonixTask[User] = program[CassandraApp.Op].interpret[MonixTask]
-  Await.result(task.runAsync, Duration.Inf)
+  val task: Task[User] = program.interpret[Task]
+  val user: User = Await.result(task.runAsync, Duration.Inf)
+  println("User inserted and fetched")
+  println("*************************")
+  println(user)
+  println("*************************")
 
-  val afterTask: MonixTask[Unit] = close[ClusterAPI.Op].interpret[MonixTask]
+  val afterTask: Task[Unit] = close[ClusterAPI.Op].interpret[Task]
   Await.result(afterTask.runAsync, Duration.Inf)
 
-  Await.result(closeSession[SessionAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
-  Await.result(close[ClusterAPI.Op].interpret[MonixTask].runAsync, Duration.Inf)
+  Await.result(closeSession[SessionAPI.Op].interpret[Task].runAsync, Duration.Inf)
+  Await.result(close[ClusterAPI.Op].interpret[Task].runAsync, Duration.Inf)
 
 }
