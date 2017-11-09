@@ -15,7 +15,7 @@ val dependencies = Seq(
   "io.frees" %% "frees-async-cats-effect" % "0.4.1",
   "io.frees" %% "frees-monix"             % "0.4.1",
   "io.frees" %% "frees-logging"           % "0.4.1",
-  "io.frees" %% "frees-cassandra-core"    % "0.0.3"
+  "io.frees" %% "frees-cassandra-core"    % "0.0.4"
 )
 
 lazy val model = (project in file("model"))

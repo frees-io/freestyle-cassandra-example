@@ -59,35 +59,35 @@ object StringInterpolator extends App {
     def liftFSPar[A](ga: monix.eval.Task[A]): FreeS.Par[F, A] = ga.liftFSPar[F]
   }
 
-  def program(implicit queryModule: QueryModule[QueryModule.Op]): FreeS[QueryModule.Op, User] = {
+  def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
 
-    implicit val s = queryModule.sessionAPI
+    implicit val s = app.queryModule.sessionAPI
 
-    val insertUserTask: FreeS[QueryModule.Op, ResultSet] =
-      cql"INSERT INTO users (id, name) VALUES ($uuid, 'Username');".asResultSet()
-    val getUserTask: FreeS[QueryModule.Op, ResultSet] =
-      cql"SELECT id, name FROM users WHERE id = $uuid".asResultSet()
+    val insertUserTask: FreeS[F, ResultSet] =
+      cql"INSERT INTO demodb.users (id, name) VALUES ($uuid, 'Username');".asResultSet[F]()
+    val getUserTask: FreeS[F, ResultSet] =
+      cql"SELECT id, name FROM demodb.users WHERE id = $uuid".asResultSet[F]()
 
     for {
+      _             <- app.log.debug(s"# Executing insert query with id $uuid")
       _             <- insertUserTask
+      _             <- app.log.debug("# Selecting previous inserted item")
       userResultSet <- getUserTask
       user = {
         val userRow = userResultSet.one()
         User(userRow.getUUID(0), userRow.getString(1))
       }
-      _ <- queryModule.sessionAPI.close
+      _             <- app.log.debug(s"# Fetched item: $user")
+      _             <- app.log.debug(s"# Closing connection")
+      _             <- app.queryModule.sessionAPI.close
     } yield user
   }
 
   val beforeTask: Task[Session] = connect[ClusterAPI.Op].interpret[Task]
   implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
 
-  val task: Task[User] = program.interpret[Task]
+  val task: Task[User] = program[CassandraApp.Op].interpret[Task]
   val user: User = Await.result(task.runAsync, Duration.Inf)
-  println("User inserted and fetched")
-  println("*************************")
-  println(user)
-  println("*************************")
 
   val afterTask: Task[Unit] = close[ClusterAPI.Op].interpret[Task]
   Await.result(afterTask.runAsync, Duration.Inf)
