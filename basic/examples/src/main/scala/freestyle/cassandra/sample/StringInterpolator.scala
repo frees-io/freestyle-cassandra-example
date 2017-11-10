@@ -23,12 +23,8 @@ import com.datastax.driver.core._
 import freestyle._
 import freestyle.implicits._
 import freestyle.cassandra.api._
-import freestyle.cassandra.codecs._
 import freestyle.cassandra.implicits._
-import freestyle.async.implicits._
 import freestyle.asyncCatsEffect.implicits._
-import freestyle.asyncGuava.implicits._
-import freestyle.cassandra.query.interpolator.RuntimeCQLInterpolator._
 import freestyle.cassandra.query.interpolator._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._

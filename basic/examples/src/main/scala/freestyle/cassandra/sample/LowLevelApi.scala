@@ -25,9 +25,7 @@ import freestyle.implicits._
 import freestyle.cassandra.implicits._
 import freestyle.cassandra.api.ClusterAPI
 import freestyle.cassandra.codecs._
-import freestyle.async.implicits._
 import freestyle.asyncCatsEffect.implicits._
-import freestyle.asyncGuava.implicits._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.loggingJVM.implicits._
