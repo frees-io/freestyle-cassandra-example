@@ -18,14 +18,7 @@ package freestyle.cassandra.sample
 
 import java.util.UUID
 
-import cats.{MonadError, ~>}
 import com.datastax.driver.core._
-import freestyle.async.implicits._
-import monix.eval.Task
-import freestyle.asyncCatsEffect.implicits._
-import monix.eval.instances.CatsAsyncInstances._
-import monix.execution.Scheduler.Implicits.global
-import cats.implicits._
 
 object Implicits {
 
@@ -39,17 +32,5 @@ object Implicits {
   implicit val uuidTypeCodec: TypeCodec[UUID] = TypeCodec.uuid()
 
   implicit val protocolVersion: ProtocolVersion = ProtocolVersion.V4
-
-  import freestyle.cassandra.api._
-  import freestyle.cassandra.handlers.implicits._
-
-  implicit def clusterAPIInterpreter(implicit cluster: Cluster, E: MonadError[Task, Throwable]): ClusterAPI.Op ~> Task =
-    clusterAPIHandler[Task] andThen apiInterpreter[Task, Cluster](cluster)
-
-  implicit def sessionAPIInterpreter(implicit session: Session, E: MonadError[Task, Throwable]): SessionAPI.Op ~> Task =
-    sessionAPIHandler[Task] andThen apiInterpreter[Task, Session](session)
-
-  implicit def statementAPIInterpreter(implicit E: MonadError[Task, Throwable]): StatementAPI.Handler[Task] =
-    statementAPIHandler[Task]
 
 }

@@ -1,14 +1,13 @@
 package freestyle.cassandra.sample
 
 import freestyle._
-import freestyle.cassandra.api.{SessionAPI, StatementAPI}
+import freestyle.cassandra.api._
 import freestyle.logging._
 
 object Modules {
 
   @module trait CassandraApp {
-    val sessionAPI: SessionAPI
-    val statementAPI: StatementAPI
+    val queryModule: QueryModule
     val log: LoggingM
   }
 

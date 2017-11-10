@@ -22,12 +22,14 @@ import cats.instances.future._
 import com.datastax.driver.core.{BoundStatement, PreparedStatement, Session}
 import freestyle._
 import freestyle.implicits._
+import freestyle.cassandra.implicits._
 import freestyle.cassandra.api.ClusterAPI
 import freestyle.cassandra.codecs._
+import freestyle.asyncCatsEffect.implicits._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.loggingJVM.implicits._
-import monix.eval.{Task => MonixTask}
+import monix.eval.Task
 import monix.execution.Scheduler
 
 import scala.concurrent.Await
@@ -43,6 +45,7 @@ object LowLevelApi extends App {
   def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
 
     import app._
+    import app.queryModule._
 
     val newUser = User(UUID.randomUUID(), "Username")
 
@@ -81,13 +84,13 @@ object LowLevelApi extends App {
 
   implicit val executionContext: Scheduler = Scheduler.Implicits.global
 
-  val beforeTask: MonixTask[Session] = connect[ClusterAPI.Op].interpret[MonixTask]
+  val beforeTask: Task[Session] = connect[ClusterAPI.Op].interpret[Task]
   implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
 
-  val task: MonixTask[User] = program[CassandraApp.Op].interpret[MonixTask]
+  val task: Task[User] = program[CassandraApp.Op].interpret[Task]
   Await.result(task.runAsync, Duration.Inf)
 
-  val afterTask: MonixTask[Unit] = close[ClusterAPI.Op].interpret[MonixTask]
+  val afterTask: Task[Unit] = close[ClusterAPI.Op].interpret[Task]
   Await.result(afterTask.runAsync, Duration.Inf)
 
 }
