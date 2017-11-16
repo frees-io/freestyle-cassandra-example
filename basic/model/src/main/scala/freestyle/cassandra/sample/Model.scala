@@ -25,6 +25,4 @@ object Model {
   @SchemaFileInterpolator("/schema.cql")
   trait DummySchemaInterpolator
 
-
-
 }

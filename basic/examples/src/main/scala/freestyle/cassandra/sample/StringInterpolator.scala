@@ -25,7 +25,6 @@ import freestyle.implicits._
 import freestyle.cassandra.api._
 import freestyle.cassandra.implicits._
 import freestyle.asyncCatsEffect.implicits._
-import freestyle.cassandra.query.interpolator._
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.sample.Model._
 import freestyle.loggingJVM.implicits._
@@ -35,11 +34,11 @@ import monix.execution.Scheduler
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
+import freestyle.cassandra.sample.handlers.implicits._
+
 object StringInterpolator extends App {
 
-  import Modules.CassandraApp
-  import DummySchemaInterpolator._
-
+  import Modules.StringInterpolatorApp
   implicit val executionContext: Scheduler = Scheduler.Implicits.global
 
   def connect[F[_]](implicit clusterAPI: ClusterAPI[F]): FreeS[F, Session] =
@@ -55,20 +54,15 @@ object StringInterpolator extends App {
     def liftFSPar[A](ga: monix.eval.Task[A]): FreeS.Par[F, A] = ga.liftFSPar[F]
   }
 
-  def program[F[_]](implicit app: CassandraApp[F]): FreeS[F, User] = {
+  def program[F[_]](implicit app: StringInterpolatorApp[F]): FreeS[F, User] = {
 
     implicit val s = app.queryModule.sessionAPI
 
-    val insertUserTask: FreeS[F, ResultSet] =
-      cql"INSERT INTO demodb.users (id, name) VALUES ($uuid, 'Username');".asResultSet[F]()
-    val getUserTask: FreeS[F, ResultSet] =
-      cql"SELECT id, name FROM demodb.users WHERE id = $uuid".asResultSet[F]()
-
     for {
       _             <- app.log.debug(s"# Executing insert query with id $uuid")
-      _             <- insertUserTask
+      _             <- app.userApi.insert(uuid)
       _             <- app.log.debug("# Selecting previous inserted item")
-      userResultSet <- getUserTask
+      userResultSet <- app.userApi.get(uuid)
       user = {
         val userRow = userResultSet.one()
         User(userRow.getUUID(0), userRow.getString(1))
@@ -82,7 +76,7 @@ object StringInterpolator extends App {
   val beforeTask: Task[Session] = connect[ClusterAPI.Op].interpret[Task]
   implicit val session: Session = Await.result(beforeTask.runAsync, Duration.Inf)
 
-  val task: Task[User] = program[CassandraApp.Op].interpret[Task]
+  val task: Task[User] = program[StringInterpolatorApp.Op].interpret[Task]
   val user: User = Await.result(task.runAsync, Duration.Inf)
 
   val afterTask: Task[Unit] = close[ClusterAPI.Op].interpret[Task]
