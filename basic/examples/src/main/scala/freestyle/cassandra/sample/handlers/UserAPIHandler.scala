@@ -5,7 +5,7 @@ import java.util.UUID
 import cats.MonadError
 import com.datastax.driver.core.{ResultSet, Session}
 import freestyle.async.AsyncContext
-import freestyle.cassandra.sample.Model.DummySchemaInterpolator
+import freestyle.cassandra.sample.Model.SchemaInterpolator
 import freestyle.cassandra.sample.algebras.UserAPI
 import freestyle.cassandra.sample.Implicits._
 import freestyle.cassandra.query.interpolator._
@@ -21,7 +21,7 @@ object implicits {
     E: ExecutionContext,
     ME: MonadError[F, Throwable]): UserAPI.Handler[F] = new UserAPI.Handler[F] {
 
-    import DummySchemaInterpolator._
+    import SchemaInterpolator._
 
     override protected[this] def insert(userId: UUID): F[ResultSet] =
       cql"INSERT INTO demodb.users (id, name) VALUES ($userId, 'Username');".attemptResultSet[F]()
