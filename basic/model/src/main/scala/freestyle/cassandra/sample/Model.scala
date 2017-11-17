@@ -23,8 +23,6 @@ object Model {
   case class User(id: java.util.UUID, name: String)
 
   @SchemaFileInterpolator("/schema.cql")
-  trait DummySchemaInterpolator
-
-
+  trait SchemaInterpolator
 
 }
